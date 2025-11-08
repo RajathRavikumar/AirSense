@@ -1,0 +1,124 @@
+import { useState, useEffect } from "react";
+import { Search, Wind, Droplets, Eye, Activity } from "lucide-react";
+import { GlassCard } from "./components/GlassCard";
+import { motion } from "framer-motion";
+import AirQualityMap from "./components/AirQualityMap";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Area,
+  AreaChart,
+} from "recharts";
+
+const pollutantData = [
+  { name: "PM2.5", value: 85, color: "#f87171" },
+  { name: "PM10", value: 120, color: "#60a5fa" },
+  { name: "NO2", value: 45, color: "#fbbf24" },
+  { name: "O3", value: 160, color: "#34d399" },
+  { name: "CO", value: 95, color: "#a78bfa" },
+];
+
+const timeSeriesData = [
+  { time: "00:00", pm25: 65, pm10: 95 },
+  { time: "04:00", pm25: 72, pm10: 108 },
+  { time: "08:00", pm25: 85, pm10: 120 },
+  { time: "12:00", pm25: 78, pm10: 112 },
+  { time: "16:00", pm25: 90, pm10: 135 },
+  { time: "20:00", pm25: 82, pm10: 118 },
+];
+
+const aqiMetrics = [
+  { label: "AQI", value: "152", status: "Unhealthy", icon: Wind, color: "text-red-400" },
+  { label: "Humidity", value: "68%", status: "Moderate", icon: Droplets, color: "text-blue-400" },
+  { label: "Visibility", value: "4.2km", status: "Poor", icon: Eye, color: "text-yellow-400" },
+  { label: "Health Index", value: "3.2", status: "Caution", icon: Activity, color: "text-orange-400" },
+];
+
+export default function App() {
+  const [cityName, setCityName] = useState("Vijayapura");
+  const [searchInput, setSearchInput] = useState("");
+  const [mapPosition, setMapPosition] = useState([16.8302, 75.7100]); // [lat, lon]
+  const [airQualityData, setAirQualityData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchAQI = async () => {
+      if (!position) return;
+      
+      setAqiData(null); // Clear old data while new data is loading
+      setError(null);
+
+      try {
+        const response = await axios.get(
+          `http://127.0.0.1:5000/api/airquality?lat=${position[0]}&lon=${position[1]}`
+        );
+        setAqiData(response.data);
+      } catch (err) {
+        console.error("Error fetching AQI data:", err);
+        setError('Failed to fetch air quality data.');
+      }
+    };
+
+    fetchAQI();
+  }, [position]); 
+
+  // --- 2. NEW FUNCTION TO HANDLE SEARCH ---
+  const handleSearch = async (city) => {
+    setError(null);
+    try {
+      // Call our backend's geocode endpoint
+      const response = await axios.get(
+        `http://127.0.0.1:5000/api/geocode?city=${city}`
+      );
+      
+      const { lat, lon, name } = response.data;
+      
+      // Update the position, which triggers the useEffect above
+      setPosition([lat, lon]);
+      setMapTitle(name); // Update the title
+      
+    } catch (err) {
+      console.error("Error fetching geocode data:", err);
+      if (err.response && err.response.status === 404) {
+        setError('City not found. Please try again.');
+      } else {
+        setError('Failed to search for city.');
+      }
+    }
+  };
+
+  return (
+    <div style={{ padding: '20px', maxWidth: '1000px', margin: 'auto' }}>
+      <h1 style={{ textAlign: 'center' }}>AirSense Dashboard</h1>
+      
+      {/* --- 3. ADD THE SEARCHBAR COMPONENT --- */}
+      <SearchBar onSearch={handleSearch} />
+      
+      {error && <p style={{ color: 'red', textAlign: 'center' }}>Error: {error}</p>}
+      
+      {aqiData ? (
+        <>
+          <h2 style={{ textAlign: 'center' }}>Showing data for: {mapTitle}</h2>
+          <div style={{ marginBottom: '20px' }}>
+            <AirQualityMap data={aqiData} position={position} />
+          </div>
+          <div>
+            <PollutantChart data={aqiData} />
+          </div>
+        </>
+      ) : (
+        <p style={{ textAlign: 'center' }}>
+          {error ? '' : 'Loading map and data...'}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export default App;
